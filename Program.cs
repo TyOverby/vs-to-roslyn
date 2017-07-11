@@ -13,7 +13,8 @@ namespace vs_to_roslyn
 {
     class Program
     {
-        const string HACK_AccessToken = "PUT YOUR ACCESS TOKEN HERE";
+        const string UserName = "PUT YOUR VSO USER NAME HERE";
+        const string AccessToken = "PUT YOUR VSO ACCESS TOKEN HERE";
 
         public static HttpClient JsonVsoClient(String personalAccessToken)
         {
@@ -22,7 +23,7 @@ namespace vs_to_roslyn
             client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic",
                 Convert.ToBase64String(
                     System.Text.ASCIIEncoding.ASCII.GetBytes(
-                        String.Format("{0}:{1}", "tyoverby", personalAccessToken))));
+                        String.Format("{0}:{1}", UserName, personalAccessToken))));
             return client;
         }
         public static HttpClient PlainTextVsoClient(String personalAccessToken)
@@ -32,7 +33,7 @@ namespace vs_to_roslyn
             client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic",
                 Convert.ToBase64String(
                     System.Text.ASCIIEncoding.ASCII.GetBytes(
-                        String.Format("{0}:{1}", "tyoverby", personalAccessToken))));
+                        String.Format("{0}:{1}", UserName, personalAccessToken))));
             return client;
         }
 

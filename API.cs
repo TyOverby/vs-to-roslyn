@@ -26,8 +26,8 @@ public class Path {
 
 public class VsToRoslyn
 {
-    const string UserName = "tyoverby";
-    const string AccessToken = "4fteel7hzhmhs3wburakzbpbsgidwzbxoayzejwvxw5npdbd6d2q";
+    static string UserName = System.Environment.GetEnvironmentVariable("VSO_USERNAME");
+    static string AccessToken = System.Environment.GetEnvironmentVariable("VSO_PERSONAL_ACCESS_TOKEN");
 
     private static HttpClient JsonVsoClient(String personalAccessToken)
     {

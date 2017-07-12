@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using System.Linq;
 using System.Net.Http;
@@ -8,6 +9,7 @@ using Newtonsoft.Json.Converters;
 using Newtonsoft.Json.Linq;
 using System.Collections.Immutable;
 using System.Text.RegularExpressions;
+using Microsoft.Extensions.Logging;
 
 public class Path {
     public string VsoBuildTag { get; }
@@ -23,8 +25,8 @@ public class Path {
 
 public class VsToRoslyn
 {
-    const string UserName = "USER NAME HERE";
-    const string AccessToken = "AUTH TOKEN HERE";
+    const string UserName = ;
+    const string AccessToken = ;
 
     private static HttpClient JsonVsoClient(String personalAccessToken)
     {
@@ -77,7 +79,14 @@ public class VsToRoslyn
         }
     }
 
+    private static Dictionary<String, ImmutableArray<String>> _findTagByBuildNumberCache = new Dictionary<String, ImmutableArray<String>>();
     private static async Task<ImmutableArray<String>> FindTagByBuildNumber(HttpClient client , String buildNumber) {
+        lock (_findTagByBuildNumberCache) {
+            if (_findTagByBuildNumberCache.TryGetValue(buildNumber, out var r)) {
+                return r;
+            }
+        }
+
         var refs = await GetJson(client, "https://devdiv.visualstudio.com/DefaultCollection/_apis/git/repositories/a290117c-5a8a-40f7-bc2c-f14dbe3acf6d/refs");
         var builder = ImmutableArray.CreateBuilder<String>();
         var regex = new Regex(buildNumber);
@@ -87,12 +96,25 @@ public class VsToRoslyn
                 builder.Add(name);
             }
         }
-        return builder.ToImmutableArray();
+        var result = builder.ToImmutableArray();
+        lock (_findTagByBuildNumberCache)
+        {
+            _findTagByBuildNumberCache.Add(buildNumber, result);
+        }
+        return result;
     }
 
     private static Regex branchBuildRegex = new Regex("roslyn/(.+)/(.+);");
+    private static Dictionary<String, (String, String)> _getRoslynBuildInfoCache = new Dictionary<String, (String, String)>();
     private static async Task<(String branch, String build)> GetRoslynBuildInfo(HttpClient client, String tag) {
         tag = tag.Replace("refs/tags/", "").Replace("refs/heads/", "");
+        lock(_getRoslynBuildInfoCache)
+        {
+            if (_getRoslynBuildInfoCache.TryGetValue(tag, out var value)) {
+                return value;
+            }
+        }
+
         var componentsJsonResult = await GetString(client,
             "https://devdiv.visualstudio.com/DefaultCollection/_apis/git/repositories/a290117c-5a8a-40f7-bc2c-f14dbe3acf6d/items?api-version=1.0"
                 + "&scopePath=%2F.corext%2FConfigs%2Fcomponents.json"
@@ -101,21 +123,40 @@ public class VsToRoslyn
         dynamic obj = JObject.Parse(componentsJsonResult);
         string compilersUrl = obj.Components["Microsoft.CodeAnalysis.Compilers"].url;
         var match = branchBuildRegex.Match(compilersUrl);
-        return (match.Groups[1].Value, match.Groups[2].Value);
+        var result = (match.Groups[1].Value, match.Groups[2].Value);
+
+        lock(_getRoslynBuildInfoCache)
+        {
+            _getRoslynBuildInfoCache.Add(tag, result);
+        }
+        return result;
     }
 
+    static int _roslynBuildDefinition = -1;
     private static async Task<int> GetRoslynBuildDefinition(HttpClient client) {
+        if (_roslynBuildDefinition != -1) {
+            return _roslynBuildDefinition;
+        }
+
         var definitions = await GetJson(client,"https://devdiv.visualstudio.com/DefaultCollection/DevDiv/_apis/build/definitions?api-version=2.0");
         foreach (var definition in definitions.value) {
             string name = definition.name.ToString();
             if (name == "Roslyn-Signed") {
+                _roslynBuildDefinition = definition.id;
                 return definition.id;
             }
         }
         return -1;
     }
 
+    static Dictionary<(int, string, string), ImmutableArray<string>> _matchingRoslynBuild = new Dictionary<(int, string, string), ImmutableArray<string>>();
     private static async Task<ImmutableArray<string>> GetMatchingRoslynBuild(HttpClient client, int roslynBuildDef, string branch, string build) {
+        lock(_matchingRoslynBuild) {
+            if (_matchingRoslynBuild.TryGetValue((roslynBuildDef, branch, build), out var r)) {
+                return r;
+            }
+        }
+
         var builds = await GetJson(client, $"https://devdiv.visualstudio.com/DefaultCollection/DevDiv/_apis/build/builds?api-version=2.0&definitions={roslynBuildDef}&statusFilter=completed");
         var builder = ImmutableArray.CreateBuilder<string>();
         foreach (var buildInstance in builds.value) {
@@ -124,11 +165,15 @@ public class VsToRoslyn
                 builder.Add(buildInstance.sourceVersion.ToString());
             }
         }
-        return builder.ToImmutableArray();
+        var result = builder.ToImmutableArray();
+        lock(_matchingRoslynBuild) {
+            _matchingRoslynBuild.Add((roslynBuildDef, branch, build), result);
+        }
+        return result;
     }
 
 
-    public static async Task<ImmutableArray<Path>> GetPaths(string needle){
+    public static async Task<ImmutableArray<Path>> GetPaths(string needle, ILogger logger){
         var jsonClient = JsonVsoClient(AccessToken);
         var textClient = PlainTextVsoClient(AccessToken);
         var builder = ImmutableArray.CreateBuilder<Path>();
@@ -138,24 +183,30 @@ public class VsToRoslyn
         // Filter them out so we don't report these expected errors.
         gitrefs = gitrefs.Where(r => !r.Contains("temp")).ToImmutableArray();
 
-        Console.WriteLine($"found {gitrefs.Length} tags that match the regex \"{needle}\"");
+        logger.LogInformation($"found {gitrefs.Length} tags that match the regex \"{needle}\"");
         foreach (var r in gitrefs) {
-            Console.WriteLine(r);
+            logger.LogInformation(r);
         }
-        Console.WriteLine();
 
         int roslynBuildDef = await GetRoslynBuildDefinition(jsonClient);
+
+        if (roslynBuildDef == -1) {
+            logger.LogError("Roslyn Build Definition not found!");
+        }
+        if (gitrefs.IsEmpty) {
+            logger.LogWarning("No git refs found!");
+        }
+
         foreach (var tag in gitrefs) {
-            Console.WriteLine($"VSO-TAG:     {tag}");
+            logger.LogInformation($"VSO-TAG:     {tag}");
 
             var (branch, build) = await GetRoslynBuildInfo(textClient, tag);
-            Console.WriteLine($"ROSLYN-TAG:  {branch}/{build}");
+            logger.LogInformation($"ROSLYN-TAG:  {branch}/{build}");
 
             foreach (var roslynHash in await GetMatchingRoslynBuild(jsonClient, roslynBuildDef, branch, build)) {
-                Console.WriteLine($"ROSLYN-HASH: {roslynHash}");
+                logger.LogInformation($"ROSLYN-HASH: {roslynHash}");
                 builder.Add(new Path(tag, $"{branch}/{build}", roslynHash));
             }
-            Console.WriteLine();
         }
 
         return builder.ToImmutableArray();

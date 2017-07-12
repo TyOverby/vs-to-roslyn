@@ -10,6 +10,7 @@ using Newtonsoft.Json.Linq;
 using System.Collections.Immutable;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
+using static System.Net.WebUtility;
 
 public class Path {
     public string VsoBuildTag { get; }
@@ -25,8 +26,8 @@ public class Path {
 
 public class VsToRoslyn
 {
-    const string UserName = ;
-    const string AccessToken = ;
+    const string UserName = "tyoverby";
+    const string AccessToken = "4fteel7hzhmhs3wburakzbpbsgidwzbxoayzejwvxw5npdbd6d2q";
 
     private static HttpClient JsonVsoClient(String personalAccessToken)
     {
@@ -119,7 +120,7 @@ public class VsToRoslyn
             "https://devdiv.visualstudio.com/DefaultCollection/_apis/git/repositories/a290117c-5a8a-40f7-bc2c-f14dbe3acf6d/items?api-version=1.0"
                 + "&scopePath=%2F.corext%2FConfigs%2Fcomponents.json"
                 + "&versionType=Tag"
-                + $"&version={System.Net.WebUtility.UrlEncode(tag)}");
+                + $"&version={UrlEncode(tag)}");
         dynamic obj = JObject.Parse(componentsJsonResult);
         string compilersUrl = obj.Components["Microsoft.CodeAnalysis.Compilers"].url;
         var match = branchBuildRegex.Match(compilersUrl);
@@ -197,15 +198,23 @@ public class VsToRoslyn
             logger.LogWarning("No git refs found!");
         }
 
-        foreach (var tag in gitrefs) {
-            logger.LogInformation($"VSO-TAG:     {tag}");
+        // Limit to 10 results for sanity
+        foreach (var tag in gitrefs.Take(10)) {
+            try
+            {
+                logger.LogInformation($"VSO-TAG:     {tag}");
 
-            var (branch, build) = await GetRoslynBuildInfo(textClient, tag);
-            logger.LogInformation($"ROSLYN-TAG:  {branch}/{build}");
+                var (branch, build) = await GetRoslynBuildInfo(textClient, tag);
+                logger.LogInformation($"ROSLYN-TAG:  {branch}/{build}");
 
-            foreach (var roslynHash in await GetMatchingRoslynBuild(jsonClient, roslynBuildDef, branch, build)) {
-                logger.LogInformation($"ROSLYN-HASH: {roslynHash}");
-                builder.Add(new Path(tag, $"{branch}/{build}", roslynHash));
+                foreach (var roslynHash in await GetMatchingRoslynBuild(jsonClient, roslynBuildDef, branch, build))
+                {
+                    logger.LogInformation($"ROSLYN-HASH: {roslynHash}");
+                    builder.Add(new Path(tag, $"{branch}/{build}", roslynHash));
+                }
+            }
+            catch(Exception e) {
+                logger.LogError($"failed for {tag}", e);
             }
         }
 

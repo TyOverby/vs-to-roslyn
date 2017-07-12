@@ -1,0 +1,27 @@
+<!doctype html>
+
+<html>
+    <head>
+        <script src="/script.js"></script>
+        <style>
+table, tr, td {
+    border: 1px solid black;
+}
+tr:nth-child(1) > td {
+    text-align: center;
+    font-weight: bold;
+    border: none;
+}
+        </style>
+    </head>
+    <body>
+        <form onsubmit="process(this); return false;">
+            <input id="branch" type="branch" placeholder="branch"> </input>
+            <input id="build" type="build" placeholder="build"> </input>
+            <input type="submit" value="submit"> </input>
+        </form>
+
+        <div id = "output">
+        </div>
+    </body>
+</html>

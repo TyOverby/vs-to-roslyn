@@ -1,55 +1,57 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
-using Microsoft.Extensions.Logging;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.FileProviders;
+using Microsoft.Extensions.Logging;
+using Newtonsoft.Json;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using System;
-using System.Diagnostics;
 
 class WebConfigurator {
     private async Task WriteStringUtf8(Stream stream, string s) {
         var bytes = System.Text.UTF8Encoding.UTF8.GetBytes(s);
         await stream.WriteAsync(bytes, 0, bytes.Length);
     }
+
+    public void ConfigureServices(IServiceCollection services) {
+        services.AddDirectoryBrowser();
+    }
+
     public void Configure(IApplicationBuilder app, ILoggerFactory loggerFactory) {
         loggerFactory.AddConsole();
+
+        app = app.UseFileServer(new FileServerOptions()
+        {
+            FileProvider = new PhysicalFileProvider(
+                System.IO.Path.Combine(System.IO.Directory.GetCurrentDirectory(), "static")),
+            RequestPath = new PathString("/static"),
+            EnableDirectoryBrowsing = true,
+        });
+
         app.Run(async (context) =>
         {
             var (request, response) = (context.Request, context.Response);
+            Console.WriteLine(request.Path);
+            if (!request.Path.StartsWithSegments(new PathString("/api"))) {
+                response.StatusCode = StatusCodes.Status404NotFound;
+                return;
+            }
+
             var body = response.Body;
-            response.ContentType = "text/html";
-            var pathParts = request.Path.Value.Split('/').Where(s => !String.IsNullOrWhiteSpace(s));
+            response.ContentType = "application/json";
+            var pathParts = request.Path.Value.Substring("api/".Length).Split('/').Where(s => !String.IsNullOrWhiteSpace(s));
             var pathRegex = String.Join(".*", pathParts);
             var logger = loggerFactory.CreateLogger(pathRegex);
             var paths = await VsToRoslyn.GetPaths(pathRegex, logger);
 
-            await WriteStringUtf8(body, $"<head><title>{String.Join(" ", pathParts)}</title></title>");
-            await WriteStringUtf8(body, @"
-            <style>
-                table, tr, td {
-                    border: 1px solid black;
-                }
-            </style>
-            ");
-
-
-            await WriteStringUtf8(body, "<table style=\"border:1px solid black;\">");
-            await WriteStringUtf8(body, "<tr>");
-                await WriteStringUtf8(body, "<td><b>VSO Build Tag</b></td>");
-                await WriteStringUtf8(body, "<td><b>Roslyn Signed Build Tag</b></td>");
-                await WriteStringUtf8(body, "<td><b>Roslyn SHA</b></td>");
-            await WriteStringUtf8(body, "</tr>");
-            foreach (var path in paths) {
-                await WriteStringUtf8(body, "<tr>");
-                    await WriteStringUtf8(body, $"<td>{path.VsoBuildTag}</td>");
-                    await WriteStringUtf8(body, $"<td>{path.RoslynBuildTag}</td>");
-                    await WriteStringUtf8(body, $"<td>{path.RoslynSha}</td>");
-                await WriteStringUtf8(body, "</tr>");
-            }
-            await WriteStringUtf8(body, "</table>");
+            var json = JsonConvert.SerializeObject(paths.ToArray());
+            await WriteStringUtf8(body, json);
         });
+
     }
 }
 

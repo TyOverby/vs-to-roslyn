@@ -39,7 +39,7 @@ namespace clean
                     System.IO.Path.Combine(Directory.GetCurrentDirectory(), "wwwroot")),
                 RequestPath = new PathString(""),
                 EnableDefaultFiles = true,
-                EnableDirectoryBrowsing = true,
+                EnableDirectoryBrowsing = false,
             });
 
             app.Run(async (context) =>

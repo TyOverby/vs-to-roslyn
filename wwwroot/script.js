@@ -57,7 +57,7 @@ function process(form) {
                 outputElement = table;
             }
             container.innerHTML = `<h1>${branch} ${build}</h1>`;
-            container.append(outputElement);
+            container.appendChild(outputElement);
         })
         .catch((err) => console.error(err));
 }

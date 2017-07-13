@@ -105,13 +105,13 @@ public class VsToRoslyn
         return result;
     }
 
-    private static Regex branchBuildRegex = new Regex("roslyn/(.+)/(.+);");
-    private static Dictionary<String, (String, String)> _getRoslynBuildInfoCache = new Dictionary<String, (String, String)>();
-    private static async Task<(String branch, String build)> GetRoslynBuildInfo(HttpClient client, String tag) {
+    private static Regex branchBuildRegex = new Regex("/([.a-zA-Z0-9]+)/([.0-9].+);");
+    private static Dictionary<(String, String), (String, String)> _getRoslynBuildInfoCache = new Dictionary<(String, String), (String, String)>();
+    private static async Task<(String branch, String build)> GetBuildInfo(HttpClient client, String tag, string component) {
         tag = tag.Replace("refs/tags/", "").Replace("refs/heads/", "");
         lock(_getRoslynBuildInfoCache)
         {
-            if (_getRoslynBuildInfoCache.TryGetValue(tag, out var value)) {
+            if (_getRoslynBuildInfoCache.TryGetValue((tag, component), out var value)) {
                 return value;
             }
         }
@@ -122,32 +122,41 @@ public class VsToRoslyn
                 + "&versionType=Tag"
                 + $"&version={UrlEncode(tag)}");
         dynamic obj = JObject.Parse(componentsJsonResult);
-        string compilersUrl = obj.Components["Microsoft.CodeAnalysis.Compilers"].url;
+        string compilersUrl = obj.Components[component].url;
         var match = branchBuildRegex.Match(compilersUrl);
         var result = (match.Groups[1].Value, match.Groups[2].Value);
 
         lock(_getRoslynBuildInfoCache)
         {
-            _getRoslynBuildInfoCache.Add(tag, result);
+            _getRoslynBuildInfoCache.Add((tag, component), result);
         }
         return result;
     }
 
-    static int _roslynBuildDefinition = -1;
-    private static async Task<int> GetRoslynBuildDefinition(HttpClient client) {
-        if (_roslynBuildDefinition != -1) {
-            return _roslynBuildDefinition;
-        }
-
-        var definitions = await GetJson(client,"https://devdiv.visualstudio.com/DefaultCollection/DevDiv/_apis/build/definitions?api-version=2.0");
-        foreach (var definition in definitions.value) {
-            string name = definition.name.ToString();
-            if (name == "Roslyn-Signed") {
-                _roslynBuildDefinition = definition.id;
-                return definition.id;
+    static Dictionary<string, int> _buildDefinitions = new Dictionary<string, int>();
+    private static async Task<int> GetBuildDefinition(HttpClient client, String buildDefName) {
+        lock(_buildDefinitions) {
+            if (_buildDefinitions.TryGetValue(buildDefName, out var r)) {
+                return r;
             }
         }
-        return -1;
+
+
+        var definitions = await GetJson(client,"https://devdiv.visualstudio.com/DefaultCollection/DevDiv/_apis/build/definitions?api-version=2.0");
+        var result = -1;
+        foreach (var definition in definitions.value) {
+            string name = definition.name.ToString();
+            if (name == buildDefName) {
+                result = definition.id;
+            }
+        }
+
+        if (result != -1) {
+            lock (_buildDefinitions) {
+                _buildDefinitions.Add(buildDefName, result);
+            }
+        }
+        return result;
     }
 
     static Dictionary<(int, string, string), ImmutableArray<string>> _matchingRoslynBuild = new Dictionary<(int, string, string), ImmutableArray<string>>();
@@ -174,7 +183,7 @@ public class VsToRoslyn
     }
 
 
-    public static async Task<ImmutableArray<Path>> GetPaths(string needle, ILogger logger){
+    public static async Task<ImmutableArray<Path>> GetPaths(string needle, string buildDefName, string componentName, ILogger logger){
         var jsonClient = JsonVsoClient(AccessToken);
         var textClient = PlainTextVsoClient(AccessToken);
         var builder = ImmutableArray.CreateBuilder<Path>();
@@ -189,7 +198,8 @@ public class VsToRoslyn
             logger.LogInformation(r);
         }
 
-        int roslynBuildDef = await GetRoslynBuildDefinition(jsonClient);
+        int roslynBuildDef = await GetBuildDefinition(jsonClient, buildDefName);
+        logger.LogInformation($"roslynBuildDef");
 
         if (roslynBuildDef == -1) {
             logger.LogError("Roslyn Build Definition not found!");
@@ -204,7 +214,7 @@ public class VsToRoslyn
             {
                 logger.LogInformation($"VSO-TAG:     {tag}");
 
-                var (branch, build) = await GetRoslynBuildInfo(textClient, tag);
+                var (branch, build) = await GetBuildInfo(textClient, tag, componentName);
                 logger.LogInformation($"ROSLYN-TAG:  {branch}/{build}");
 
                 foreach (var roslynHash in await GetMatchingRoslynBuild(jsonClient, roslynBuildDef, branch, build))

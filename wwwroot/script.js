@@ -1,6 +1,7 @@
 
 function process(form) {
     let global_output = document.querySelector("#output");
+    let product = form.querySelector("#product").value;
     let branch = form.querySelector("#branch").value;
     let build = form.querySelector("#build").value;
 
@@ -9,7 +10,7 @@ function process(form) {
 
     global_output.appendChild(container);
 
-    fetch(`/api/${branch}/${build}`)
+    fetch(`/api/${product}/${branch}/${build}`)
         .then(value => value.json())
         .then(value => {
             let outputElement = null;

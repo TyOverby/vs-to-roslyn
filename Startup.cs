@@ -5,6 +5,8 @@ using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Routing;
+using static Microsoft.AspNetCore.Routing.RoutingHttpContextExtensions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -19,7 +21,31 @@ namespace clean
         // For more information on how to configure your application, visit https://go.microsoft.com/fwlink/?LinkID=398940
         public void ConfigureServices(IServiceCollection services)
         {
+            services.AddRouting();
             services.AddDirectoryBrowser();
+        }
+
+        private IRouter ApiRoute(IApplicationBuilder app, ILoggerFactory loggerFactory) {
+            var builder = new RouteBuilder(app);
+            builder.MapGet("api/{product}/{branch}/{build}", async (context) => {
+                var routeData = context.GetRouteData();
+
+                var product = routeData.Values["product"] as String;
+                var branch = routeData.Values["branch"] as String;
+                var build = routeData.Values["build"] as String;
+
+                var productChunks = product.Split('~');
+                var buildDefName = productChunks[0];
+                var component = productChunks[1];
+
+                var pathRegex = $"{branch}.*{build}";
+                var logger = loggerFactory.CreateLogger($"{buildDefName} {component} {branch} {build}");
+                var paths = await VsToRoslyn.GetPaths(pathRegex, buildDefName, component, logger);
+                var json = JsonConvert.SerializeObject(paths.ToArray());
+                await context.Response.WriteAsync(json);
+            });
+
+            return builder.Build();
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
@@ -42,24 +68,12 @@ namespace clean
                 EnableDirectoryBrowsing = false,
             });
 
-            app.Run(async (context) =>
+            app = app.UseRouter(ApiRoute(app, loggerFactory));
+
+            app.Run(context =>
             {
-                var (request, response) = (context.Request, context.Response);
-                Console.WriteLine(request.Path);
-                if (!request.Path.StartsWithSegments(new PathString("/api"))) {
-                    response.StatusCode = StatusCodes.Status404NotFound;
-                    return;
-                }
-
-                var body = response.Body;
-                response.ContentType = "application/json";
-                var pathParts = request.Path.Value.Substring("api/".Length).Split('/').Where(s => !String.IsNullOrWhiteSpace(s));
-                var pathRegex = String.Join(".*", pathParts);
-                var logger = loggerFactory.CreateLogger(pathRegex);
-                var paths = await VsToRoslyn.GetPaths(pathRegex, logger);
-
-                var json = JsonConvert.SerializeObject(paths.ToArray());
-                await context.Response.WriteAsync(json);
+                context.Response.StatusCode = 404;
+                return null;
             });
         }
     }

@@ -15,13 +15,13 @@ tr:nth-child(1) > td {
         </style>
     </head>
     <body>
-        <form onsubmit="process(this); return false;">
+        <form onsubmit="try {process(this);} finally {return false;}">
             <select id="product">
                 <option value="roslyn"> Roslyn </option>
                 <option value="lut"> LUT </option>
                 <option value="project_system"> Project System </option>
-                <option value disabled> - </option>
-                <option value="all"> all </option>
+                <option value disabled> --------------- </option>
+                <option value="all"> All </option>
             </select>
             <input id="branch" type="branch" placeholder="branch"> </input>
             <input id="build" type="build" placeholder="build"> </input>

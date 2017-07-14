@@ -90,7 +90,7 @@ public class VsToRoslyn
 
         var refs = await GetJson(client, "https://devdiv.visualstudio.com/DefaultCollection/_apis/git/repositories/a290117c-5a8a-40f7-bc2c-f14dbe3acf6d/refs");
         var builder = ImmutableArray.CreateBuilder<String>();
-        var regex = new Regex(buildNumber);
+        var regex = new Regex(buildNumber, RegexOptions.IgnoreCase);
         foreach (var gitref in refs.value) {
             string name = gitref.name.ToString();
             if (regex.IsMatch(name)) {
@@ -100,7 +100,10 @@ public class VsToRoslyn
         var result = builder.ToImmutableArray();
         lock (_findTagByBuildNumberCache)
         {
-            _findTagByBuildNumberCache.Add(buildNumber, result);
+            if (!_findTagByBuildNumberCache.ContainsKey(buildNumber))
+            {
+                _findTagByBuildNumberCache.Add(buildNumber, result);
+            }
         }
         return result;
     }
@@ -109,9 +112,10 @@ public class VsToRoslyn
     private static Dictionary<(String, String), (String, String)> _getRoslynBuildInfoCache = new Dictionary<(String, String), (String, String)>();
     private static async Task<(String branch, String build)> GetBuildInfo(HttpClient client, String tag, string component) {
         tag = tag.Replace("refs/tags/", "").Replace("refs/heads/", "");
+        var key = (tag, component);
         lock(_getRoslynBuildInfoCache)
         {
-            if (_getRoslynBuildInfoCache.TryGetValue((tag, component), out var value)) {
+            if (_getRoslynBuildInfoCache.TryGetValue(key, out var value)) {
                 return value;
             }
         }
@@ -128,7 +132,10 @@ public class VsToRoslyn
 
         lock(_getRoslynBuildInfoCache)
         {
-            _getRoslynBuildInfoCache.Add((tag, component), result);
+            if (!_getRoslynBuildInfoCache.ContainsKey(key))
+            {
+                _getRoslynBuildInfoCache.Add(key, result);
+            }
         }
         return result;
     }
@@ -153,7 +160,10 @@ public class VsToRoslyn
 
         if (result != -1) {
             lock (_buildDefinitions) {
-                _buildDefinitions.Add(buildDefName, result);
+                if (_buildDefinitions.ContainsKey(buildDefName))
+                {
+                    _buildDefinitions.Add(buildDefName, result);
+                }
             }
         }
         return result;
@@ -161,8 +171,9 @@ public class VsToRoslyn
 
     static Dictionary<(int, string, string), ImmutableArray<string>> _matchingRoslynBuild = new Dictionary<(int, string, string), ImmutableArray<string>>();
     private static async Task<ImmutableArray<string>> GetMatchingRoslynBuild(HttpClient client, int roslynBuildDef, string branch, string build) {
+        var key = (roslynBuildDef, branch, build);
         lock(_matchingRoslynBuild) {
-            if (_matchingRoslynBuild.TryGetValue((roslynBuildDef, branch, build), out var r)) {
+            if (_matchingRoslynBuild.TryGetValue(key, out var r)) {
                 return r;
             }
         }
@@ -177,7 +188,10 @@ public class VsToRoslyn
         }
         var result = builder.ToImmutableArray();
         lock(_matchingRoslynBuild) {
-            _matchingRoslynBuild.Add((roslynBuildDef, branch, build), result);
+            if (_matchingRoslynBuild.ContainsKey(key))
+            {
+                _matchingRoslynBuild.Add(key, result);
+            }
         }
         return result;
     }

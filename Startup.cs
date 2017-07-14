@@ -27,16 +27,14 @@ namespace clean
 
         private IRouter ApiRoute(IApplicationBuilder app, ILoggerFactory loggerFactory) {
             var builder = new RouteBuilder(app);
-            builder.MapGet("api/{product}/{branch}/{build}", async (context) => {
+            builder.MapGet("api/{builddef}/{component}/{branch}/{build}", async (context) => {
                 var routeData = context.GetRouteData();
 
                 var product = routeData.Values["product"] as String;
                 var branch = routeData.Values["branch"] as String;
                 var build = routeData.Values["build"] as String;
-
-                var productChunks = product.Split('~');
-                var buildDefName = productChunks[0];
-                var component = productChunks[1];
+                var buildDefName = routeData.Values["builddef"] as String;
+                var component = routeData.Values["component"] as String;
 
                 var pathRegex = $"{branch}.*{build}";
                 var logger = loggerFactory.CreateLogger($"{buildDefName} {component} {branch} {build}");

@@ -20,6 +20,13 @@ let properties = {
         build_def: "1987",
         package: "Microsoft.VisualStudio.ProjectSystem.Managed",
         github: "dotnet/project-system",
+    },
+    fsharp: {
+        display_name: "Visual F#",
+        short_name: "F#",
+        build_def: "5037",
+        package: "Microsoft.FSharp",
+        github: "Microsoft/visualfsharp",
     }
 }
 

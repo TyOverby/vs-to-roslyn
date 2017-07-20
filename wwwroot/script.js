@@ -3,21 +3,21 @@ let properties = {
     roslyn: {
         display_name: "Roslyn",
         short_name: "Roslyn",
-        build_def: "Roslyn-Signed",
+        build_def: "1449",
         package: "Microsoft.CodeAnalysis.Compilers",
         github: "dotnet/roslyn",
     },
     lut: {
         display_name: "Live Unit Testing",
         short_name: "LUT",
-        build_def: "TestImpact-Signed",
+        build_def: "2127",
         package: "Microsoft.CodeAnalysis.LiveUnitTesting",
         github: "dotnet/testimpact",
     },
     project_system: {
         display_name: "Managed Project System",
         short_name: "Project System",
-        build_def: "DotNet-Project-System",
+        build_def: "1987",
         package: "Microsoft.VisualStudio.ProjectSystem.Managed",
         github: "dotnet/project-system",
     }

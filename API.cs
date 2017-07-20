@@ -108,7 +108,7 @@ public class VsToRoslyn
         return result;
     }
 
-    private static Regex branchBuildRegex = new Regex("/([.a-zA-Z0-9]+)/([.0-9].+);");
+    private static Regex branchBuildRegex = new Regex(".+/(.+)/(.+);");
     private static Dictionary<(String, String), (String, String)> _getRoslynBuildInfoCache = new Dictionary<(String, String), (String, String)>();
     private static async Task<(String branch, String build)> GetBuildInfo(HttpClient client, String tag, string component) {
         tag = tag.Replace("refs/tags/", "").Replace("refs/heads/", "");
@@ -197,7 +197,7 @@ public class VsToRoslyn
     }
 
 
-    public static async Task<ImmutableArray<Path>> GetPaths(string needle, string buildDefName, string componentName, ILogger logger){
+    public static async Task<ImmutableArray<Path>> GetPaths(string needle, string buildDef, string componentName, ILogger logger){
         var jsonClient = JsonVsoClient(AccessToken);
         var textClient = PlainTextVsoClient(AccessToken);
         var builder = ImmutableArray.CreateBuilder<Path>();
@@ -212,8 +212,13 @@ public class VsToRoslyn
             logger.LogInformation(r);
         }
 
-        int roslynBuildDef = await GetBuildDefinition(jsonClient, buildDefName);
-        logger.LogInformation($"roslynBuildDef");
+        // If the buildDef string is actually the build def number, use that,
+        // otherwise perform a lookup.
+        int roslynBuildDef;
+        if (!Int32.TryParse(buildDef, out roslynBuildDef)) {
+            roslynBuildDef = await GetBuildDefinition(jsonClient, buildDef);
+        }
+        logger.LogInformation($"roslynBuildDef: {roslynBuildDef}");
 
         if (roslynBuildDef == -1) {
             logger.LogError("Roslyn Build Definition not found!");

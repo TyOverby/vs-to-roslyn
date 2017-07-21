@@ -30,6 +30,8 @@ let properties = {
     }
 }
 
+let builds = [];
+
 function process(form) {
     let global_output = document.querySelector("#output");
     let product = form.querySelector("#product").value;
@@ -56,53 +58,79 @@ function process(form) {
         fetch(`/api/${product_info.build_def}/${product_info.package}/${branch}/${build}`)
             .then(value => value.json())
             .then(value => {
-                let outputElement = null;
-
                 if (value.length == 0) {
-                    outputElement = document.createTextNode("No elements!");
+                    alert("No elements!");
                 } else {
-                    let table = document.createElement("table");
-                    let tr = document.createElement("tr");
-                    {
-                        let td = document.createElement("td");
-                        td.innerText = "Vso Build Tag";
-                        tr.appendChild(td);
+                    for (let b of value) {
+                        builds.push({
+                            product: product_info.short_name,
+                            branch: branch,
+                            build: build,
+                            github_url: product_info.github,
+                            vso_build_tag: b.VsoBuildTag,
+                            roslyn_build_tag: b.RoslynBuildTag,
+                            github_sha: b.RoslynSha,
+                        });
                     }
-                    {
-                        let td = document.createElement("td");
-                        td.innerHTML = `${product_info.short_name} Build Tag`;
-                        tr.appendChild(td);
-                    }
-                    {
-                        let td = document.createElement("td");
-                        td.innerText = `${product_info.short_name} Sha`;
-                        tr.appendChild(td);
-                    }
-                    table.appendChild(tr);
-                    for (let row of value) {
-                        let tr = document.createElement("tr");
-                        {
-                            let td = document.createElement("td");
-                            td.innerText = row.VsoBuildTag;
-                            tr.appendChild(td);
-                        }
-                        {
-                            let td = document.createElement("td");
-                            td.innerText = row.RoslynBuildTag;
-                            tr.appendChild(td);
-                        }
-                        {
-                            let td = document.createElement("td");
-                            td.innerHTML = `<a href="https://github.com/${product_info.github}/commit/${row.RoslynSha}">${row.RoslynSha}</a>`;
-                            tr.appendChild(td);
-                        }
-                        table.appendChild(tr);
-                    }
-                    outputElement = table;
                 }
-                container.innerHTML = `<h1>${product_info.display_name} ${branch} ${build}</h1>`;
-                container.appendChild(outputElement);
+                render()
             })
             .catch((err) => console.error(err));
     }
+}
+
+function render() {
+    function td(value) {
+        let td = document.createElement("td");
+        if (typeof value === "string") {
+            td.innerText = value;
+        } else {
+            td.appendChild(value);
+        }
+        return td;
+    }
+    function a(text, href) {
+        let a = document.createElement("a");
+        a.href = href;
+        a.innerText = text;
+        return a;
+    }
+    function th(value) {
+        let th = document.createElement("th");
+        th.innerText = value;
+        return th;
+    }
+
+    function tr(children) {
+        let tr = document.createElement("tr");
+        for (let child of children) {
+            tr.appendChild(child);
+        }
+        return tr;
+    }
+
+    let table = document.createElement("table");
+    table.className = "table table-bordered table-striped";
+
+    let thead = document.createElement("thead");
+    table.appendChild(thead);
+    let headers = ["Product", "Branch", "Build", "VSO Build Tag", "Roslyn Build Tag", "Github SHA"];
+    thead.appendChild(tr(headers.map(th)));
+
+    let tbody = document.createElement("tbody");
+    table.appendChild(tbody);
+    for (var row of builds) {
+        tbody.appendChild(tr([
+            td(row.product),
+            td(row.branch),
+            td(row.build),
+            td(row.vso_build_tag),
+            td(row.roslyn_build_tag),
+            td(a(row.github_sha, `https://github.com/${row.github_url}/commit/${row.github_sha}`))
+        ]));
+    }
+
+    let output = document.querySelector("#output");
+    output.innerHTML = ""; // clear inside
+    output.appendChild(table);
 }

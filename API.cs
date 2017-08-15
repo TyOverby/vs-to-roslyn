@@ -171,7 +171,7 @@ public class VsToRoslyn
 
         if (result != -1) {
             lock (_buildDefinitions) {
-                if (_buildDefinitions.ContainsKey(buildDefName))
+                if (!_buildDefinitions.ContainsKey(buildDefName))
                 {
                     _buildDefinitions.Add(buildDefName, result);
                 }
@@ -189,7 +189,10 @@ public class VsToRoslyn
             }
         }
 
-        var builds = await GetJson(client, $"https://devdiv.visualstudio.com/DefaultCollection/DevDiv/_apis/build/builds?api-version=2.0&definitions={roslynBuildDef}&statusFilter=completed", logger);
+        var queryParams = $"definitions={roslynBuildDef}&buildNumber={build}&statusFilter=all&resultFilter=all&reasonFilter=all&deletedFilter=1";
+        var requestUrl = $"https://devdiv.visualstudio.com/DefaultCollection/DevDiv/_apis/build/builds?api-version=2.0&{queryParams}";
+        logger.LogTrace(requestUrl);
+        var builds = await GetJson(client, requestUrl,  logger);
         var builder = ImmutableArray.CreateBuilder<string>();
         foreach (var buildInstance in builds.value) {
             if (buildInstance.sourceBranch.ToString().EndsWith(branch) && buildInstance.buildNumber.ToString() == build)
@@ -199,7 +202,7 @@ public class VsToRoslyn
         }
         var result = builder.ToImmutableArray();
         lock(_matchingRoslynBuild) {
-            if (_matchingRoslynBuild.ContainsKey(key))
+            if (!_matchingRoslynBuild.ContainsKey(key))
             {
                 _matchingRoslynBuild.Add(key, result);
             }

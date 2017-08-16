@@ -12,15 +12,23 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.FileProviders;
 using Newtonsoft.Json;
+using Microsoft.VisualStudio.Services.Common;
+using Microsoft.VisualStudio.Services.WebApi;
 
 namespace clean
 {
     public class Startup
     {
+        private VssCredentials creds = new VssBasicCredential(
+            Environment.GetEnvironmentVariable("VSO_USERNAME"),
+            Environment.GetEnvironmentVariable("VSO_PERSONAL_ACCESS_TOKEN"));
+        private VssConnection connection = null;
+
         // This method gets called by the runtime. Use this method to add services to the container.
         // For more information on how to configure your application, visit https://go.microsoft.com/fwlink/?LinkID=398940
         public void ConfigureServices(IServiceCollection services)
         {
+            connection = new VssConnection(new Uri("https://devdiv.visualstudio.com/DefaultCollection"), creds);
             services.AddRouting();
             services.AddDirectoryBrowser();
         }
@@ -38,7 +46,7 @@ namespace clean
 
                 var pathRegex = $"{branch}.*{build}";
                 var logger = loggerFactory.CreateLogger($"{buildDefName} {component} {branch} {build}");
-                var paths = await VsToRoslyn.GetPaths(pathRegex, buildDefName, component, logger);
+                var paths = await VsToRoslyn2.GetPathsAsync(connection, branch, build, int.Parse(buildDefName), component, logger);
                 var json = JsonConvert.SerializeObject(paths.ToArray());
                 await context.Response.WriteAsync(json);
             });

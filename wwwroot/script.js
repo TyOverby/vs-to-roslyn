@@ -58,6 +58,7 @@ function process(form) {
         fetch(`/api/${product_info.build_def}/${product_info.package}/${branch}/${build}`)
             .then(value => value.json())
             .then(value => {
+                console.log(value);
                 if (value.length == 0) {
                     alert("No elements!");
                 } else {
@@ -69,6 +70,7 @@ function process(form) {
                             github_url: product_info.github,
                             vso_build_tag: b.VsoBuildTag,
                             roslyn_build_tag: b.RoslynBuildTag,
+                            roslyn_build_date: b.RoslynBuildDate,
                             github_sha: b.RoslynSha,
                         });
                     }
@@ -114,7 +116,7 @@ function render() {
 
     let thead = document.createElement("thead");
     table.appendChild(thead);
-    let headers = ["Product", "Branch", "Build", "VSO Build Tag", "Roslyn Build Tag", "Github SHA"];
+    let headers = ["Product", "Branch", "Build", "VSO Build Tag", "Roslyn Build Tag", "Roslyn Build Date", "Github SHA"];
     thead.appendChild(tr(headers.map(th)));
 
     let tbody = document.createElement("tbody");
@@ -126,6 +128,7 @@ function render() {
             td(row.build),
             td(row.vso_build_tag),
             td(row.roslyn_build_tag),
+            td(row.roslyn_build_date),
             td(a(row.github_sha, `https://github.com/${row.github_url}/commit/${row.github_sha}`))
         ]));
     }

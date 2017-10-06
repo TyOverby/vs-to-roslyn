@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Collections.Generic;
 using System.Linq;
@@ -33,9 +33,11 @@ namespace clean
             services.AddDirectoryBrowser();
         }
 
-        private IRouter ApiRoute(IApplicationBuilder app, ILoggerFactory loggerFactory) {
+        private IRouter ApiRoute(IApplicationBuilder app, ILoggerFactory loggerFactory)
+        {
             var builder = new RouteBuilder(app);
-            builder.MapGet("api/{builddef}/{component}/{branch}/{build}", async (context) => {
+            builder.MapGet("api/{builddef}/{component}/{branch}/{build}", async (context) =>
+            {
                 var routeData = context.GetRouteData();
 
                 var product = routeData.Values["product"] as String;
@@ -46,7 +48,7 @@ namespace clean
 
                 var pathRegex = $"{branch}.*{build}";
                 var logger = loggerFactory.CreateLogger($"{buildDefName} {component} {branch} {build}");
-                var paths = await VsToRoslyn2.GetPathsAsync(connection, branch, build, int.Parse(buildDefName), component, logger);
+                var paths = await VsToRoslyn.GetPathsAsync(connection, branch, build, int.Parse(buildDefName), component, logger);
                 var json = JsonConvert.SerializeObject(paths.ToArray());
                 await context.Response.WriteAsync(json);
             });

@@ -18,7 +18,7 @@ document.querySelector("#branchname").textContent = branch;
 fetch(`api/listbuilds/${branch}`)
     .then(value => value.json())
     .then(async value => {
-        value = value.splice(value.length - 10);
+        value = value.splice(value.length - 10).reverse();
         for (let build of value) {
             await run("roslyn", branch, build);
         }

@@ -42,7 +42,37 @@ public class VsToRoslyn
     public readonly static Guid REPO = new Guid("a290117c-5a8a-40f7-bc2c-f14dbe3acf6d");
     private readonly static Regex branchBuildRegex = new Regex(".+/(.+)/(.+);");
 
-    public static async Task<ImmutableArray<Path>> GetPathsAsync(VssConnection connection, string branch, string build, int buildDef, string component, ILogger logger)
+    public static async Task<string[]> GetAllBuildNumbers(VssConnection connection, string branch, ILogger logger)
+    {
+        var gitClient = connection.GetClient<GitHttpClient>();
+
+        var allRefs = await gitClient.GetTagRefsAsync(REPO);
+        var nonTempRefs = allRefs.Where(r => !r.Name.Contains("temp"));
+        var correctNamedRefs = nonTempRefs.Where(r => r.Name.Contains($"{branch}/"))
+                                          .Select(gr => gr.Name)
+                                          .Select(name => name.Substring($"refs/tags/drop/{branch}/".Length))
+                                          .OrderBy(a => a)
+                                          .ToArray();
+        return correctNamedRefs;
+    }
+
+    public static async Task<string[]> GetAllBranches(VssConnection connection, ILogger logger)
+    {
+        var gitClient = connection.GetClient<GitHttpClient>();
+
+        var allRefs = await gitClient.GetTagRefsAsync(REPO);
+        var nonTempRefs = allRefs.Where(r => !r.Name.Contains("temp"));
+        var correctNamedRefs = nonTempRefs.Select(gr => gr.Name)
+                                          .Where(name => name.StartsWith("refs/tags/drop/"))
+                                          .Select(name => name.Substring("refs/tags/drop/".Length))
+                                          .Select(name => name.Split("/")[0])
+                                          .ToImmutableHashSet()
+                                          .OrderBy(a => a)
+                                          .ToArray();
+        return correctNamedRefs;
+    }
+
+    public static async Task<ImmutableArray<Path>> GetPathsAsync(VssConnection connection, string branch, string build, int buildDef, string component, string jsonFile, ILogger logger)
     {
         var gitClient = connection.GetClient<GitHttpClient>();
         var buildClient = connection.GetClient<BuildHttpClient>();
@@ -59,36 +89,52 @@ public class VsToRoslyn
         }
 
         var jsonFilesAtLocation = await Task.WhenAll(correctNamedRefs.Select(async tag =>
-        {
-            logger.LogError(tag.Url);
-            var desc = new GitVersionDescriptor();
-            desc.VersionType = GitVersionType.Tag;
-            desc.Version = tag.Name.Replace("refs/tags/", "");
-            var stream = await gitClient.GetItemContentAsync(PROJECT, REPO, "/.corext/Configs/components.json", versionDescriptor: desc);
-            var streamReader = new System.IO.StreamReader(stream, System.Text.Encoding.UTF8);
-            return (Tag: tag, JsonSource: await streamReader.ReadToEndAsync());
-        }));
+         {
+             logger.LogError(tag.Url);
+             var desc = new GitVersionDescriptor();
+             desc.VersionType = GitVersionType.Tag;
+             desc.Version = tag.Name.Replace("refs/tags/", "");
 
-        var buildExtracted = jsonFilesAtLocation.Select(a =>
+             var componentsStream = await gitClient.GetItemContentAsync(PROJECT, REPO, "/.corext/Configs/components.json", versionDescriptor: desc);
+             var componentsStreamReader = new System.IO.StreamReader(componentsStream, System.Text.Encoding.UTF8);
+
+             var customStream = await gitClient.GetItemContentAsync(PROJECT, REPO, $"/.corext/Configs/{jsonFile}.json", versionDescriptor: desc);
+             var customStreamReader = new System.IO.StreamReader(customStream, System.Text.Encoding.UTF8);
+
+             return new[] {
+                (Tag: tag, JsonSource: await componentsStreamReader.ReadToEndAsync()),
+                (Tag: tag, JsonSource: await customStreamReader.ReadToEndAsync()),
+            };
+         }));
+
+        var buildExtracted = jsonFilesAtLocation.SelectMany(a => a).Select(a =>
         {
-            dynamic obj = JObject.Parse(a.JsonSource);
-            string url = obj["Components"][component]["url"];
+            string url;
+            try
+            {
+                dynamic obj = JObject.Parse(a.JsonSource);
+                url = obj["Components"][component]["url"];
+            }
+            catch
+            {
+                return (Tag: null, Branch: null, Build: null);
+            }
             var match = branchBuildRegex.Match(url);
-            var result = (match.Groups[1].Value, match.Groups[2].Value);
-            return (Tag: a.Tag, Branch: match.Groups[1].Value, Build: match.Groups[2].Value);
-        });
+            if (!match.Success)
+            {
+                return (Tag: null, Branch: null, Build: null);
+            }
+            var (branchExtr, buildExtr) = (match.Groups[1].Value, match.Groups[2].Value);
+            return (Tag: a.Tag, Branch: branchExtr, Build: buildExtr);
+        })
+        .Where(b => b.Tag != null);
 
         var matchingBuildsCollection = await Task.WhenAll(buildExtracted.Select(async a =>
         {
             var buildDefinitions = new int[] { buildDef };
             var builds = await buildClient.GetBuildsAsync(
                 PROJECT, buildDefinitions,
-                // buildNumber: a.Build,
                 deletedFilter: QueryDeletedOption.IncludeDeleted);
-            foreach (var b in builds)
-            {
-                Console.WriteLine(b.BuildNumber);
-            }
             return builds
                 .Where(componentBuild => componentBuild.BuildNumber == a.Build)
                 .Where(componentBuild => componentBuild.SourceBranch.Contains(a.Branch))

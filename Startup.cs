@@ -36,7 +36,7 @@ namespace clean
         private IRouter ApiRoute(IApplicationBuilder app, ILoggerFactory loggerFactory)
         {
             var builder = new RouteBuilder(app);
-            builder.MapGet("api/{builddef}/{component}/{branch}/{build}", async (context) =>
+            builder.MapGet("api/{builddef}/{component}/{branch}/{build}/{jsonfile}", async context =>
             {
                 var routeData = context.GetRouteData();
 
@@ -45,11 +45,33 @@ namespace clean
                 var build = routeData.Values["build"] as String;
                 var buildDefName = routeData.Values["builddef"] as String;
                 var component = routeData.Values["component"] as String;
+                var jsonFile = routeData.Values["jsonfile"] as String;
 
                 var pathRegex = $"{branch}.*{build}";
                 var logger = loggerFactory.CreateLogger($"{buildDefName} {component} {branch} {build}");
-                var paths = await VsToRoslyn.GetPathsAsync(connection, branch, build, int.Parse(buildDefName), component, logger);
+                var paths = await VsToRoslyn.GetPathsAsync(connection, branch, build, int.Parse(buildDefName), component, jsonFile, logger);
                 var json = JsonConvert.SerializeObject(paths.ToArray());
+                await context.Response.WriteAsync(json);
+            });
+
+            builder.MapGet("api/listbuilds/{branch}", async context =>
+            {
+                var routeData = context.GetRouteData();
+
+                var branch = routeData.Values["branch"] as String;
+                var logger = loggerFactory.CreateLogger($"{branch}");
+
+                var branches = await VsToRoslyn.GetAllBuildNumbers(connection, branch, logger);
+                var json = JsonConvert.SerializeObject(branches);
+                await context.Response.WriteAsync(json);
+            });
+
+            builder.MapGet("api/allbranches", async context =>
+            {
+                var logger = loggerFactory.CreateLogger($"allbranches");
+
+                var branches = await VsToRoslyn.GetAllBranches(connection, logger);
+                var json = JsonConvert.SerializeObject(branches);
                 await context.Response.WriteAsync(json);
             });
 

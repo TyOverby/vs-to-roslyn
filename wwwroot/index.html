@@ -1,47 +1,55 @@
 <!doctype html>
 
 <html>
-    <head>
-        <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous"/>
-        <script src="/script.js"></script>
-        <link rel="stylesheet" href="/style.css"/>
-    </head>
-    <body>
-        <form id="search-form" class="form-horizontal" onsubmit="try {process(this);} finally {return false;}">
-            <div class="form-group">
-                <label for="product" class="col-sm-2 control-label"> Product </label>
-                <div class="col-sm-10">
-                    <select id="product" class="form-control">
-                        <option value="roslyn"> Roslyn </option>
-                        <option value="lut"> LUT </option>
-                        <option value="project_system"> Project System </option>
-                        <option value="fsharp"> F# </option>
-                        <option value disabled> --------------- </option>
-                        <option value="all"> All </option>
-                    </select>
-                </div>
-            </div>
 
-            <div class="form-group">
-                <label for="branch" class="col-sm-2 control-label"> Branch </label>
-                <div class="col-sm-10">
-                    <input id="branch" class="form-control" type="branch" placeholder="d15rel"> </input>
-                </div>
-            </div>
-            <div class="form-group">
-                <label for="build" class="col-sm-2 control-label"> Build </label>
-                <div class="col-sm-10">
-                    <input id="build" class="form-control"type="build" placeholder="26612.00"> </input>
-                </div>
-            </div>
-            <div class="form-group">
-                <div class="col-sm-offset-2 col-sm-10">
-                    <input type="submit" class="btn btn-primary" value="submit"> </input>
-                </div>
-            </div>
-        </form>
+<head>
+    <meta charset="UTF-8">
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u"
+        crossorigin="anonymous" />
+    <script async src="/script.js"></script>
+    <link rel="stylesheet" href="/style.css" />
+</head>
 
-        <div id = "output">
+<body>
+    <form id="search-form" class="form-horizontal" onsubmit="try {process(this);} finally {return false;}">
+        <div class="form-group">
+            <label for="product" class="col-sm-2 control-label"> Product </label>
+            <div class="col-sm-10">
+                <select id="product" class="form-control">
+                    <option value="roslyn"> Roslyn </option>
+                    <option value="lut"> LUT </option>
+                    <option value="project_system"> Project System </option>
+                    <option value="fsharp"> F# </option>
+                    <option value disabled> --------------- </option>
+                    <option value="all"> All </option>
+                </select>
+            </div>
         </div>
-    </body>
+
+        <div class="form-group">
+            <label for="branch" class="col-sm-2 control-label"> Branch </label>
+            <div class="col-sm-10">
+                <select id="branch" class="form-control" type="branch">
+                    <option value="foo" disabled>loading...</option>
+                </select>
+            </div>
+        </div>
+        <div class="form-group">
+            <label for="build" class="col-sm-2 control-label"> Build </label>
+            <div class="col-sm-10">
+                <select id="build" class="form-control" type="build">
+                </select>
+            </div>
+        </div>
+        <div class="form-group">
+            <div class="col-sm-offset-2 col-sm-10">
+                <input type="submit" class="btn btn-primary" value="submit"> </input>
+            </div>
+        </div>
+    </form>
+
+    <div id="output">
+    </div>
+</body>
+
 </html>

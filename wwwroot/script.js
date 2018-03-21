@@ -1,4 +1,3 @@
-
 let properties = {
     roslyn: {
         display_name: "Roslyn",
@@ -6,6 +5,7 @@ let properties = {
         build_def: "1449",
         package: "Microsoft.CodeAnalysis.Compilers",
         github: "dotnet/roslyn",
+        jsonfile: "dotnetcodeanalysis-components",
     },
     lut: {
         display_name: "Live Unit Testing",
@@ -13,6 +13,7 @@ let properties = {
         build_def: "2127",
         package: "Microsoft.CodeAnalysis.LiveUnitTesting",
         github: "dotnet/testimpact",
+        jsonfile: "lutandsbd-components",
     },
     project_system: {
         display_name: "Managed Project System",
@@ -20,6 +21,7 @@ let properties = {
         build_def: "1987",
         package: "Microsoft.VisualStudio.ProjectSystem.Managed",
         github: "dotnet/project-system",
+        jsonfile: "dotnetprojectsystem-components",
     },
     fsharp: {
         display_name: "Visual F#",
@@ -27,58 +29,55 @@ let properties = {
         build_def: "5037",
         package: "Microsoft.FSharp",
         github: "Microsoft/visualfsharp",
+        jsonfile: "components",
     }
 }
 
 let builds = [];
 
+let global_output = document.querySelector("#output");
 function process(form) {
-    let global_output = document.querySelector("#output");
     let product = form.querySelector("#product").value;
 
+    let branch = form.querySelector("#branch").value;
+    let build = form.querySelector("#build").value;
     if (product === "all") {
         for (let key in properties) {
-            run(key);
+            run(key, branch, build);
         }
     } else {
-        run(product);
+        run(product, branch, build);
     }
+}
 
-    function run(product) {
-        let branch = form.querySelector("#branch").value;
-        let build = form.querySelector("#build").value;
+function run(product, branch, build) {
+    let product_info = properties[product];
+    let container = document.createElement("div");
+    container.innerHTML = `<h1>${product_info.display_name} ${branch} ${build}</h1>loading.gif`;
 
-        let product_info = properties[product];
+    global_output.appendChild(container);
 
-        let container = document.createElement("div");
-        container.innerHTML = `<h1>${product_info.display_name} ${branch} ${build}</h1>loading.gif`;
-
-        global_output.appendChild(container);
-
-        fetch(`/api/${product_info.build_def}/${product_info.package}/${branch}/${build}`)
-            .then(value => value.json())
-            .then(value => {
-                console.log(value);
-                if (value.length == 0) {
-                    alert("No elements!");
-                } else {
-                    for (let b of value) {
-                        builds.push({
-                            product: product_info.short_name,
-                            branch: branch,
-                            build: build,
-                            github_url: product_info.github,
-                            vso_build_tag: b.VsoBuildTag,
-                            roslyn_build_tag: b.RoslynBuildTag,
-                            roslyn_build_date: b.RoslynBuildDate,
-                            github_sha: b.RoslynSha,
-                        });
-                    }
+    return fetch(`/api/${product_info.build_def}/${product_info.package}/${branch}/${build}/${product_info.jsonfile}`)
+        .then(value => value.json())
+        .then(value => {
+            if (value.length == 0) {
+                alert("No elements!");
+            } else {
+                for (let b of value) {
+                    builds.push({
+                        product: product_info.short_name,
+                        branch: branch,
+                        build: build,
+                        github_url: product_info.github,
+                        vso_build_tag: b.VsoBuildTag,
+                        roslyn_build_tag: b.RoslynBuildTag,
+                        roslyn_build_date: b.RoslynBuildDate,
+                        github_sha: b.RoslynSha,
+                    });
                 }
-                render()
-            })
-            .catch((err) => console.error(err));
-    }
+            }
+            render()
+        })
 }
 
 function render() {
@@ -136,4 +135,37 @@ function render() {
     let output = document.querySelector("#output");
     output.innerHTML = ""; // clear inside
     output.appendChild(table);
+}
+
+function loadBranches() {
+    fetch(`/api/allbranches`)
+        .then(value => value.json())
+        .then(value => {
+            var sb = "";
+            for (let branch of value) {
+                sb += `<option value="${branch}">${branch}</option>`;
+            }
+            document.querySelector("#branch").innerHTML = sb;
+        })
+        .then(_ => {
+            document.querySelector("#branch").onchange = function (event) {
+                document.querySelector("#build").innerHTML = "";
+                let branch = event.target.value;
+                fetch(`api/listbuilds/${branch}`)
+                    .then(value => value.json())
+                    .then(value => {
+                        var sb = "";
+                        for (let build of value) {
+                            sb += `<option value="${build}">${build}</option>`;
+                        }
+                        document.querySelector("#build").innerHTML = sb;
+                    })
+                    .catch(e => alert(e));
+            };
+        })
+        .catch(e => alert(e));
+}
+
+if (window.location.href.indexOf("track") == -1) {
+    loadBranches();
 }
